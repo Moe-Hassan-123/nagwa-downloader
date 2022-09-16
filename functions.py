@@ -1,6 +1,6 @@
 """
 @author: Mohamed Hassan
-The Functions that drive my app.
+Main Functionality of the app.
 """
 import requests
 import bs4
@@ -162,6 +162,8 @@ def download_video(link: Url) -> tuple[Video, dict[str, str]]:
 
     video_link = video_player.find("source")["src"]
 
+    # If we have a list of videos, then we only need one video.
+    # Generally, this happens when there are more than one resolution.
     if isinstance(video_link, list):
         video_link = video_link[0]
 

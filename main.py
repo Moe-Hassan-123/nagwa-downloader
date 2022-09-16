@@ -1,3 +1,6 @@
+"""A Script that downloads videos from nagwa website
+"""
+
 from dataclasses import dataclass
 from enum import Enum
 import pathlib
@@ -27,11 +30,11 @@ class ExtendedEnum(Enum):
 
 
 class Link (ExtendedEnum):
-    PLAN: str = "Lesson Plan"
-    VIDEO: str = "Lesson Video"
-    PRESENTATION: str = "Lesson Presentation"
-    PLAYLIST: str = "Lesson Playlist"
-    EXPLAINER: str = "Lesson Explainer"
+    PLAN: Func.Url = "Lesson Plan"
+    VIDEO: Func.Url = "Lesson Video"
+    PRESENTATION: Func.Url = "Lesson Presentation"
+    PLAYLIST: Func.Url = "Lesson Playlist"
+    EXPLAINER: Func.Url = "Lesson Explainer"
 
 
 @dataclass
@@ -40,11 +43,11 @@ class Lesson:
 
     title: str
     path: pathlib.Path
-    main_link: str
-    links: dict[Link, str]
+    main_link: Func.Url
+    links: dict[Func.Url, str]
 
 
-def save_video(lesson: Lesson):
+def save_video(lesson: Lesson) -> None:
     video_path = lesson.path / "Lesson Video"
     video_path.mkdir(parents=True, exist_ok=True)
 
@@ -54,7 +57,7 @@ def save_video(lesson: Lesson):
         return
 
     try:
-        video, subtitles = Func.download_video(lesson.links[Link.VIDEO])
+        video, subtitles = Func.download_video(lesson.links[Link.VIDEO.value])
     except KeyError:
         Func.log(f"LESSON'S VIDEO NOT FOUND IN {lesson.title}")
         return
@@ -71,15 +74,20 @@ def save_video(lesson: Lesson):
     Func.print_success("Successfuly Wrote the video and subtitles to disk.")
 
 
-def save_questions_playlist(lesson: Lesson):
+def save_questions_playlist(lesson: Lesson) -> None:
     questions_path: pathlib.Path = lesson.path / "Questions Videos"
     questions_path.mkdir(parents=True, exist_ok=True)
-    # videos: dict[str, str] = Func.get_playlist(lesson.links[Link.PLAYLIST])
+    if any(questions_path.iterdir()):
+        Func.print_success("Question Videos Already Exist")
+        return
+    Videos = Func.get_playlist(lesson.links[Link.PLAYLIST.value])
+    for title, video in Videos.items():
+        video_path = questions_path / f"{title.strip()}.mp4"
+        with video_path.open("wb") as f:
+            f.write(video)
 
-    # os(lesson.links[Links.PLAYLIST])
 
-
-def main():
+def main() -> None:
     if not (courses := Func.get_courses_urls(GRADE_URL, needed_courses)):
         Func.print_failure("Get Courses Urls returned Nothing.")
         return
@@ -97,14 +105,14 @@ def main():
         for unit_title, unit in curriculum.items():
             print(f"\nCURRENT UNIT is  {unit_title} \n")
             lesson = Lesson
+
             for lesson.title, lesson.main_link in unit.items():
+                lesson.links = Func.get_links(lesson.main_link, Link.list())
+
                 lesson.path = course_path / unit_title / lesson.title
                 lesson.path.mkdir(parents=True, exist_ok=True)
-                lesson.links = Func.get_links(lesson.main_link, Link.list())
-                print(lesson.links)
                 msg = f"Successfully got all links for the {lesson.title}"
                 Func.print_success(msg)
-                # Create the required paths.
 
                 save_video(lesson)
                 save_questions_playlist(lesson)

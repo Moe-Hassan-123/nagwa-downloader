@@ -2,6 +2,7 @@
 @author: Mohamed Hassan
 Main Functionality of the app.
 """
+from types import NoneType
 import requests
 import bs4
 from colorama import Fore, Style
@@ -100,13 +101,15 @@ def get_links(url: Url, links: list[str]) -> dict[str, Url]:
     """Fetches The links of required_names from the link
 
     Args:
-        link (str): The link of the lesson's page
+        url (str): The link of the lesson's page
+        links (list[str]): The title of the required links
 
     Returns:
         dict[str, str]: the title of the page and its link.
     """
     response: requests.Response = requests.get(url)
     soup: bs4.BeautifulSoup = bs4.BeautifulSoup(response.text, "lxml")
+
     try:
         lesson_menu = soup.find(class_="components").findChild("ul")
     except AttributeError as err:
@@ -115,18 +118,16 @@ def get_links(url: Url, links: list[str]) -> dict[str, Url]:
         print(f"LOG ERROR: {err}\n unordered list isn't \
               found in the components class in the soup")
 
-    child: bs4.element.Tag
     result: dict[str, str] = {}
+    child: bs4.element.Tag
     for child in lesson_menu.children:
         if isinstance(child, bs4.NavigableString):
             continue
 
         result_link = child.findChild("a", recursive=True)
-        # Checks the title of the current link
-        # if the title matches one of tPhe needed ones
-        # we mark it as needed and add its link and title to
-        # the return value.
+
         for title in result_link:
+            # we need to only match a string.
             if not isinstance(title, bs4.NavigableString):
                 continue
             title = title.strip()
@@ -137,21 +138,25 @@ def get_links(url: Url, links: list[str]) -> dict[str, Url]:
             continue
 
         result[title] = result_link["href"]
+
     return result
 
 
-def filter_subtitles(tag):
+def filter_subtitles(tag: bs4.element.Tag):
     return tag.name == "track" and tag["srclang"] in ["ar", "en"]
 
 
 def download_video(link: Url) -> tuple[Video, dict[str, str]]:
     """Downloads the video from a link.
-       the video source must be visible in the page"""
+       the video source must be visible in the page
+    """
 
     response: requests.Response = requests.get(link)
     soup: bs4.BeautifulSoup = bs4.BeautifulSoup(response.text, "lxml")
     video_player = soup.find(id="NagwaLitePlayer")
     # limits to two so it won't keep running after finding english and arabic.
+    if isinstance(video_player, NoneType):
+        return b"", {}
     subtitles_bs4 = video_player.find_all(filter_subtitles, limit=2)
     subtitles: dict[str, str] = {}
 
@@ -181,5 +186,24 @@ def get_playlist(link: Url) -> dict[str, Video]:
         dict[str, str]: a dictionary of the video name as keys and -
         the video itself as a value.
     """
-    # how to do a V
-    ...
+    response: requests.Response = requests.get(link)
+    soup: bs4.BeautifulSoup = bs4.BeautifulSoup(response.text, "lxml")
+    videos: bs4.element.Tag = soup.find(class_="videos-list")
+    result: dict[str, Video] = {}
+    if (isinstance(videos, NoneType)):
+        raise ValueError("Can't Access The Page")
+    video: bs4.element.Tag
+    for video in videos.find_all("li"):
+        if isinstance(video, bs4.NavigableString):
+            continue
+        info_parent: bs4.element.Tag = video.find("h4")
+        info: bs4.element.Tag = info_parent.find("a")
+        # Store the video in memory
+        # HACK this may not be good and can cause crashes if
+        # the memory is overloaded.
+        video = download_video(info["href"])[0]
+        if (video == b""):
+            continue
+        result[(info.string).strip()] = video
+        print_success(f"{info.string.strip()} is Downloaded Successfuly")
+    return result

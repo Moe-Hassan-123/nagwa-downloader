@@ -1,44 +1,51 @@
 """
 @author: Mohamed Hassan
+
 Main Functionality of the app.
 """
+from io import BytesIO
+from time import sleep
 from types import NoneType
+from PIL import Image
+import logging
+import aiohttp
+import cairosvg
+import asyncio
 import requests
 import bs4
-from colorama import Fore, Style
+
+from helpers.data import Url, Video
 
 
-# Type Hint Aliases
-Url = str
-Video = bytes
-
-
-def print_success(arg: str):
-    print(f"{Fore.GREEN} {arg} {Style.RESET_ALL}")
-
-
-def print_failure(arg: str):
-    print(f"{Fore.RED} {arg} {Style.RESET_ALL}")
-
-
-def log(msg: str):
-    with open("./log.txt", "w+") as f:
-        f.write(msg)
-    print_failure(msg)
+def get_response(url: Url) -> None | requests.Response:
+    """Helper Function used in getting a response from server
+        if the response code wasn't OK it keeps requesting
+        with 3 second delay between requests. 
+    """
+    response: requests.Response = requests.get(url)
+    count = 1
+    while response.status_code != 200:
+        if count == 50:
+            return None
+        sleep(3)
+        response = requests.get(url)
+        count += 1
+    return response
 
 
 def filter_courses(tag: bs4.element.Tag) -> bool:
-    if (
-        tag.name != 'a' or
-        tag.parent.name != 'li' or
-        tag.parent.get('class') is None
-    ):
+    if tag.name != "a" or tag.parent.name != "li" or tag.parent.get("class") is None:
         return False
-    return 'book-cover' in tag.parent.get('class')
+    return "book-cover" in tag.parent.get("class")
 
 
 def get_courses_urls(GRADE_URL: Url, needed: list[str]) -> dict[str, Url]:
-    response: requests.Response = requests.get(GRADE_URL)
+
+    response = get_response(GRADE_URL)
+    if response is None:
+        logging.error(f"{GRADE_URL} Can't be reached after 50 tries.")
+        return {}
+    
     soup: bs4.BeautifulSoup = bs4.BeautifulSoup(response.text, "lxml")
     links: bs4.element.ResultSet = soup.find_all(filter_courses)
     result = {}
@@ -60,7 +67,11 @@ def get_lessons_urls(course_url: Url) -> dict[str, dict[str, Url]]:
         andthe values as another dict of the lesson title
         as key and lesson link as values.
     """
-    response: requests.Response = requests.get(course_url)
+    response = get_response(course_url)
+    if response is None:
+        logging.error(f"{course_url} Can't be reached after 50 tries.")
+        return {}
+
     soup: bs4.BeautifulSoup = bs4.BeautifulSoup(response.text, "lxml")
     # list-nested is the class where the curriculum lies.
     all = soup.find(class_="list-nested")
@@ -97,6 +108,42 @@ def get_lessons_urls(course_url: Url) -> dict[str, dict[str, Url]]:
     return result
 
 
+def get_presentation(url: Url) -> list[Image.Image]:
+    async def get_all(urls) -> list:
+        async with aiohttp.ClientSession() as session:
+
+            async def fetch(url):
+                async with session.get(url) as response:
+                    return await response.read()
+
+            return await asyncio.gather(*[fetch(url) for url in urls])
+
+    logging.info("Downloading the presentation...")
+
+    response = get_response(url)
+    if response is None:
+        logging.error(f"{url} Can't be reached after 50 tries.")
+        return []
+
+    soup: bs4.BeautifulSoup = bs4.BeautifulSoup(response.text, "lxml")
+    slides_bs4: bs4.element.Tag = soup.find_all(alt="Slide")
+    slides_links = [slide["src"] for slide in slides_bs4]
+    images = []
+
+    slides = asyncio.run(get_all(slides_links))
+    logging.info("Processing the presentation...")
+    for slide in slides:
+        res = cairosvg.svg2png(bytestring=slide, scale=4, dpi=3000)
+        # I had to convert to bytes as that's the form PIL library understands.
+        res_bytes = BytesIO(res)
+        rgba = Image.open(res_bytes)
+        rgb = Image.new("RGB", rgba.size, (255, 255, 255))  # white background
+        # Paste using alpha channel as mask
+        rgb.paste(rgba, mask=rgba.split()[3])
+        images.append(rgb)
+    return images
+
+
 def get_links(url: Url, links: list[str]) -> dict[str, Url]:
     """Fetches The links of required_names from the link
 
@@ -107,16 +154,20 @@ def get_links(url: Url, links: list[str]) -> dict[str, Url]:
     Returns:
         dict[str, str]: the title of the page and its link.
     """
-    response: requests.Response = requests.get(url)
+    response = get_response(url)
+    if response is None:
+        logging.error(f"{url} Can't be reached after 50 tries.")
+        return {}
+
     soup: bs4.BeautifulSoup = bs4.BeautifulSoup(response.text, "lxml")
+    if response.status_code != 200:
+        logging.warning(f"response for {url} isn't OK it is: {response.status_code}")
 
     try:
         lesson_menu = soup.find(class_="components").findChild("ul")
     except AttributeError as err:
-        with open("log.txt", "w") as f:
-            f.write(str(err))
-        print(f"LOG ERROR: {err}\n unordered list isn't \
-              found in the components class in the soup")
+        logging.error(err)
+        return {}
 
     result: dict[str, str] = {}
     child: bs4.element.Tag
@@ -148,10 +199,13 @@ def filter_subtitles(tag: bs4.element.Tag):
 
 def download_video(link: Url) -> tuple[Video, dict[str, str]]:
     """Downloads the video from a link.
-       the video source must be visible in the page
+    the video source must be visible in the page
     """
 
-    response: requests.Response = requests.get(link)
+    response = get_response(link)
+    if response is None:
+        logging.error(f"{link} Can't be reached after 50 tries.")
+        return (b"", {})
     soup: bs4.BeautifulSoup = bs4.BeautifulSoup(response.text, "lxml")
     video_player = soup.find(id="NagwaLitePlayer")
     # limits to two so it won't keep running after finding english and arabic.
@@ -163,7 +217,7 @@ def download_video(link: Url) -> tuple[Video, dict[str, str]]:
     for subtitle in subtitles_bs4:
         subtitle_link = subtitle["src"]
         # ex: en->(the subtitle file after being downloaded)
-        subtitles[subtitle["srclang"]] = requests.get(subtitle_link).text
+        subtitles[subtitle["srclang"]] = requests.get(subtitle_link, verify=False).text
 
     video_link = video_player.find("source")["src"]
 
@@ -186,24 +240,39 @@ def get_playlist(link: Url) -> dict[str, Video]:
         dict[str, str]: a dictionary of the video name as keys and -
         the video itself as a value.
     """
-    response: requests.Response = requests.get(link)
+
+    response = get_response(link)
+    if response is None:
+        logging.error(f"{link} Can't be reached after 50 tries.")
+        return {}
+
+    # FIXME potentially not needed
+    # some times we don't get a right response from the server
+    # idk if this is the case or not...
     soup: bs4.BeautifulSoup = bs4.BeautifulSoup(response.text, "lxml")
     videos: bs4.element.Tag = soup.find(class_="videos-list")
     result: dict[str, Video] = {}
-    if (isinstance(videos, NoneType)):
-        raise ValueError("Can't Access The Page")
     video: bs4.element.Tag
     for video in videos.find_all("li"):
         if isinstance(video, bs4.NavigableString):
             continue
         info_parent: bs4.element.Tag = video.find("h4")
         info: bs4.element.Tag = info_parent.find("a")
-        # Store the video in memory
-        # HACK this may not be good and can cause crashes if
-        # the memory is overloaded.
         video = download_video(info["href"])[0]
-        if (video == b""):
+        if video == b"":
             continue
         result[(info.string).strip()] = video
-        print_success(f"{info.string.strip()} is Downloaded Successfuly")
+        logging.info(f"{info.string.strip()} is Downloaded Successfuly")
     return result
+
+
+def clean(string: str) -> str:
+    """Removes any non-ascii characters
+
+    Args:
+        string (str): string to be cleaned
+
+    Returns:
+        str: the same string with non-ascii characters replaced
+    """
+    return "".join([c for c in string if ord(c) < 128])

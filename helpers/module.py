@@ -29,8 +29,7 @@ def save_video(lesson: type[Lesson]) -> None:
         with path_subs.open("w") as f:
             f.write(subtitle)
     vid_path: pathlib.Path = video_path / "Video.mp4"
-    with vid_path.open("wb") as f:
-        f.write(video)
+    vid_path.write_bytes(video)
     logging.info("Successfuly Wrote the video and subtitles to disk.")
 
 
@@ -51,10 +50,7 @@ def save_questions_playlist(lesson: type[Lesson]) -> None:
     for title, video in Videos.items():
         title = Func.clean(title)
         video_path = questions_path / f"{title}.mp4"
-        # Make sure parent path exists.
-        questions_path.mkdir(parents=True, exist_ok=True)
-        with video_path.open("wb+") as f:
-            f.write(video)
+        video_path.write_bytes(video)
 
 
 def save_presentation(lesson: type[Lesson]) -> None:

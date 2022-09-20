@@ -4,4 +4,6 @@
 /log.txt
 /result
 out.txt
-.gitignore
+*cache*
+*cpython*
+nagwa.log

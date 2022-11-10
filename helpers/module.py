@@ -5,7 +5,7 @@ from helpers.data import Link, Lesson, Url
 
 
 def save_video(lesson: type[Lesson]) -> None:
-    if lesson.links[Link.VIDEO] is None:
+    if lesson.links.get(Link.VIDEO) is None:
         return
 
     video_path = lesson.path / "Lesson Video"
@@ -34,7 +34,7 @@ def save_video(lesson: type[Lesson]) -> None:
 
 
 def save_questions_playlist(lesson: type[Lesson]) -> None:
-    if lesson.links[Link.PLAYLIST] is None:
+    if lesson.links.get(Link.PLAYLIST) is None:
         return
 
     questions_path: pathlib.Path = lesson.path / "Questions Videos"
@@ -48,18 +48,17 @@ def save_questions_playlist(lesson: type[Lesson]) -> None:
         logging.error(f"{lesson.title}'s Playlist Page can't be accessed.\n{e}")
         return
     for title, video in Videos.items():
-        title = Func.clean(title)
         video_path = questions_path / f"{title}.mp4"
         video_path.write_bytes(video)
 
 
 def save_presentation(lesson: type[Lesson]) -> None:
 
-    path: pathlib.Path = lesson.path / "Presentation"
+    path: pathlib.Path = lesson.path / "Presentation.pdf"
     if lesson.links is None:
         return
 
-    if lesson.links[Link.PRESENTATION] is None:
+    if lesson.links.get(Link.PRESENTATION) is None:
         return
 
     if path.exists():

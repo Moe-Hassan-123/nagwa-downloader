@@ -4,6 +4,9 @@ import pathlib
 import logging
 import helpers.module as module
 
+from multiprocessing import Pool
+from multiprocessing.dummy import Pool as ThreadPool
+
 # Suppress Warnings for insecure https requests.
 import urllib3
 
@@ -50,7 +53,7 @@ def download_course(course_title, course_link) -> None:
     logging.info(f"Downloading Course: {course_title}")
     curriculum: dict = module.Func.get_lessons_urls(course_link)
 
-    course_path: pathlib.Path = pathlib.Path(f"./result/{course_title}")
+    course_path: pathlib.Path = pathlib.Path(f"/media/mohamed/Storage1/result/{course_title}")
     for title, links in curriculum.items():
         download_unit(course_path, title, links)
 
@@ -62,9 +65,8 @@ def main() -> None:
         return
 
     logging.info("Starting to Download Courses...")
-    for title, link in courses.items():
-        download_course(title, link)
-
+    with Pool() as pool:
+        pool.starmap(download_course, courses.items())
 
 if __name__ == "__main__":
     logging.basicConfig(

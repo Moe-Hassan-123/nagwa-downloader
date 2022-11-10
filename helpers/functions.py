@@ -253,6 +253,7 @@ def get_playlist(link: Url) -> dict[str, Video]:
     videos: bs4.element.Tag = soup.find(class_="videos-list")
     result: dict[str, Video] = {}
     video: bs4.element.Tag
+    repeated = 0
     for video in videos.find_all("li"):
         if isinstance(video, bs4.NavigableString):
             continue
@@ -261,8 +262,12 @@ def get_playlist(link: Url) -> dict[str, Video]:
         video = download_video(info["href"])[0]
         if video == b"":
             continue
-        result[(info.string).strip()] = video
-        logging.info(f"{info.string.strip()} is Downloaded Successfuly")
+        title = clean((info.string).strip()) 
+        if result.get(title) is not None:
+            title += f" ({repeated})"
+            repeated += 1
+        result[title] = video
+        logging.info(f"{title} is Downloaded Successfuly")
     return result
 
 
@@ -275,4 +280,4 @@ def clean(string: str) -> str:
     Returns:
         str: the same string with non-ascii characters replaced
     """
-    return "".join([c for c in string if ord(c) < 128])
+    return "".join([c for c in string if ord(c) < 128 and c not in  ["\\", "/"] ])

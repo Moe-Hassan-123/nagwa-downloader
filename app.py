@@ -6,7 +6,6 @@ import helpers.module as module
 
 # Suppress Warnings for insecure https requests.
 import urllib3
-
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 GRADE = 11

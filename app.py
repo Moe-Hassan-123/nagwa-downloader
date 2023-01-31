@@ -1,14 +1,13 @@
 """A Script that downloads videos from nagwa website
 """
-import pathlib
 import logging
-import helpers.module as module
-
+import pathlib
 from multiprocessing import Pool
-from multiprocessing.dummy import Pool as ThreadPool
 
 # Suppress Warnings for insecure https requests.
 import urllib3
+
+import helpers.module as module
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -68,15 +67,12 @@ def main() -> None:
     with Pool() as pool:
         pool.starmap(download_course, courses.items())
 
+
 if __name__ == "__main__":
     logging.basicConfig(
         format="%(asctime)s - %(levelname)s - %(message)s",
         datefmt="%I:%M:%S %p",
         level=logging.INFO,
-        handlers=
-        [
-            logging.FileHandler("nagwa.log", mode="w"),
-            logging.StreamHandler()
-        ]
+        handlers=[logging.FileHandler("nagwa.log", mode="w"), logging.StreamHandler()],
     )
     main()

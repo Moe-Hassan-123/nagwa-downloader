@@ -3,24 +3,25 @@
 
 Main Functionality of the app.
 """
+import asyncio
+import logging
 from io import BytesIO
 from time import sleep
 from types import NoneType
-from PIL import Image
-import logging
+
 import aiohttp
-import cairosvg
-import asyncio
-import requests
 import bs4
+import cairosvg
+import requests
+from PIL import Image
 
 from helpers.data import Url, Video
 
 
 def get_response(url: Url) -> None | requests.Response:
     """Helper Function used in getting a response from server
-        if the response code wasn't OK it keeps requesting
-        with 3 second delay between requests. 
+    if the response code wasn't OK it keeps requesting
+    with 3 second delay between requests.
     """
     response: requests.Response = requests.get(url)
     count = 1
@@ -45,7 +46,7 @@ def get_courses_urls(GRADE_URL: Url, needed: list[str]) -> dict[str, Url]:
     if response is None:
         logging.error(f"{GRADE_URL} Can't be reached after 50 tries.")
         return {}
-    
+
     soup: bs4.BeautifulSoup = bs4.BeautifulSoup(response.text, "lxml")
     links: bs4.element.ResultSet = soup.find_all(filter_courses)
     result = {}
@@ -222,7 +223,7 @@ def download_video(link: Url) -> tuple[Video, dict[str, str]]:
     video_link = video_player.find("source")["src"]
 
     # If we have a list of videos, then we only need one video.
-    # Generally, this happens when there are more than one resolution.
+    # Generally, this happens when there is more than one resolution.
     if isinstance(video_link, list):
         video_link = video_link[0]
 
@@ -262,7 +263,7 @@ def get_playlist(link: Url) -> dict[str, Video]:
         video = download_video(info["href"])[0]
         if video == b"":
             continue
-        title = clean((info.string).strip()) 
+        title = clean((info.string).strip())
         if result.get(title) is not None:
             title += f" ({repeated})"
             repeated += 1
@@ -280,4 +281,4 @@ def clean(string: str) -> str:
     Returns:
         str: the same string with non-ascii characters replaced
     """
-    return "".join([c for c in string if ord(c) < 128 and c not in  ["\\", "/"] ])
+    return "".join([c for c in string if ord(c) < 128 and c not in ["\\", "/"]])
